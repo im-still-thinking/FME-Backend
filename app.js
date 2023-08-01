@@ -162,6 +162,10 @@ app.post("/:wallet_address/signature", async (req, res) => {
 
 app.post("/testing", auth, (req, res) => {
     res.status(200).send("Testing Authentication");
-  });
+});
+
+app.get("/", (req, res) => {
+    res.status(200).send("Hello World");
+})
 
 module.exports = app;

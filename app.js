@@ -49,6 +49,7 @@ app.post("/register", async (req, res) => {
     res.status(201).json(user);
   } catch (err) {
     console.log(err);
+    res.send(401).json(err)
   }
 });
 

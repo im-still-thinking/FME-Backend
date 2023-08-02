@@ -2,22 +2,25 @@ require("dotenv").config();
 require("./config/database").connect();
 
 const express = require("express");
-const bcrypt = require('bcryptjs');
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const User = require("./model/user");
 const auth = require("./middleware/auth");
-const cors = require('cors')
+const cors = require("cors");
+const {Web3} = require("Web3");
 
 const app = express();
 
 app.use(express.json());
-app.use(cors())
+app.use(cors());
+
+const web3 = new Web3(new Web3.providers.HttpProvider('https://mainnet.infura.io/v3/ba9f989627a147db94806086792b6409'))
 
 // Register
 app.post("/register", async (req, res) => {
   try {
-    const { email, password} = req.body;
+    const { email, password } = req.body;
 
     if (!(email && password)) {
       res.status(400).send("All input is required");
@@ -44,12 +47,12 @@ app.post("/register", async (req, res) => {
       }
     );
 
-    user.token = token;
+    await user.updateOne({ $set: { token: token } });
 
     res.status(201).json(user);
   } catch (err) {
     console.log(err);
-    res.send(401).json(err)
+    res.send(401).json(err);
   }
 });
 
@@ -73,7 +76,7 @@ app.post("/login", async (req, res) => {
         }
       );
 
-      user.token = token;
+      await user.updateOne({ $set: { token: token } });
 
       res.status(200).json(user);
     }
@@ -92,7 +95,7 @@ app.get("/:wallet_address/nonce", async (req, res) => {
     if (user) {
       const nonce = Math.floor(Math.random() * 1000000);
 
-      user.nonce = nonce;
+      await user.updateOne({ $set: { nonce: nonce.toString() } });
 
       res.status(201).json(nonce);
     } else {
@@ -101,7 +104,7 @@ app.get("/:wallet_address/nonce", async (req, res) => {
       });
       const nonce = Math.floor(Math.random() * 1000000);
 
-      user.nonce = nonce;
+      await user.updateOne({ $set: { nonce: nonce.toString() } });
 
       res.status(201).json(nonce);
     }
@@ -119,25 +122,16 @@ app.post("/:wallet_address/signature", async (req, res) => {
 
     if (user) {
       const msg = `Nonce: ${user.nonce}`;
-      // Convert msg to hex string
-      const msgHex = ethUtil.bufferToHex(Buffer.from(msg));
 
-      // Check if signature is valid
-      const msgBuffer = ethUtil.toBuffer(msgHex);
-      const msgHash = ethUtil.hashPersonalMessage(msgBuffer);
-      const signatureBuffer = ethUtil.toBuffer(req.body.signature);
-      const signatureParams = ethUtil.fromRpcSig(signatureBuffer);
-      const publicKey = ethUtil.ecrecover(
-        msgHash,
-        signatureParams.v,
-        signatureParams.r,
-        signatureParams.s
-      );
-      const addresBuffer = ethUtil.publicToAddress(publicKey);
-      const address = ethUtil.bufferToHex(addresBuffer);
+      console.log(user.walletAddress)
 
-      if (address.toLowerCase() === req.params.wallet_address.toLowerCase()) {
-        user.nonce = Math.floor(Math.random() * 1000000);
+      const recoveredAddress = web3.eth.accounts.recover(msg, req.body.signature);
+
+      console.log(recoveredAddress)
+
+      if (recoveredAddress) {
+        console.log("Bruh")
+        user.nonce = Math.floor(Math.random() * 1000000).toString();
         user.save();
 
         const token = jwt.sign(
@@ -148,8 +142,8 @@ app.post("/:wallet_address/signature", async (req, res) => {
           process.env.TOKEN_KEY,
           { expiresIn: "2h" }
         );
-        
-        user.token = token;
+
+        await user.updateOne({ $set: { token: token } });
 
         res.status(200).json(user);
       }
@@ -164,11 +158,11 @@ app.post("/:wallet_address/signature", async (req, res) => {
 });
 
 app.post("/testing", auth, (req, res) => {
-    res.status(200).send("Testing Authentication");
+  res.status(200).send("Testing Authentication");
 });
 
 app.get("/", (req, res) => {
-    res.status(200).send("Hello World");
-})
+  res.status(200).send("Hello World");
+});
 
 module.exports = app;
